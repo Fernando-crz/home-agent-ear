@@ -13,7 +13,7 @@ STREAM_NAME = "speech_pipeline"
 RATE = 16000
 CHUNK = 1280 
 VAD_MODE = 2
-SILENCE_FRAMES = 20
+SILENCE_FRAMES = 15
 WAKEWORD_THRESHOLD = 0.5
 FRAME_DURATION_MS = 30
 FRAME_SIZE = int(RATE * FRAME_DURATION_MS / 1000)
@@ -62,12 +62,19 @@ class HomeAgentEar:
         return False
     
     def _update_silence_counter(self, chunk):
-        for frame in frames_from_chunk(chunk):
-            if len(frame) < FRAME_SIZE * 2: continue
+        has_speech = False
+        
+        for frame in frames_from_chunk(chunk): # Need to divide chunk into frames for VAD lib
+            if len(frame) < FRAME_SIZE * 2: 
+                continue
             if self.vad_model.is_speech(frame, RATE):
-                self.silence_counter = 0
-            else:
-                self.silence_counter += 1
+                has_speech = True
+                break
+                
+        if has_speech:
+            self.silence_counter = 0
+        else:
+            self.silence_counter += 1
     
     def _reset_states(self):
         self.recording = False

@@ -1,0 +1,15 @@
+[project]
+name = "home-agent-ear"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy<2",
+    "onnxruntime==1.12.1",
+    "openwakeword>=0.4.0",
+    "pyaudio>=0.2.14",
+    "redis>=7.3.0",
+    "setuptools>=82.0.1",
+    "webrtcvad-wheels>=2.0.14",
+]

@@ -5,6 +5,7 @@ from openwakeword.model import Model
 import pyaudio
 import webrtcvad
 import redis
+from enum import Enum
 
 REDIS_HOST = "127.0.0.1"
 REDIS_PORT = 6379
@@ -39,6 +40,12 @@ class RedisBroadcaster:
         full_audio_bytes = b"".join(audio)
         self.redis.xadd(self.stream_name, {"event_type": "content", "audio_data": full_audio_bytes})
 
+
+class HomeAgentEarState(str, Enum):
+    LISTENING = "listening"
+    WAKEWORD_DETECTED = "wakeword_detected"
+    CAPTURING = "capturing"
+    DONE_CAPTURING = "done_capturing"
 
 class HomeAgentEar:
     def __init__(self, pyaudio_instance, redis_broadcaster, vad_model, wakeword_model):
@@ -95,24 +102,33 @@ class HomeAgentEar:
                 self.redis_broadcaster.start()
                 
                 self.audio_to_save = list(self.prebuffer)
+                return HomeAgentEarState.WAKEWORD_DETECTED
+            
+            return HomeAgentEarState.LISTENING
         else:
             self.audio_to_save.append(chunk)
 
             self._update_silence_counter(chunk)
 
             if self.silence_counter <= SILENCE_FRAMES:
-                return
+                return HomeAgentEarState.CAPTURING
             
             self.redis_broadcaster.finish()
             self.redis_broadcaster.content(self.audio_to_save)
             
             self._reset_states()
+
+            return HomeAgentEarState.DONE_CAPTURING
     
     def run(self):
         try:
             while True:
                 chunk = self.stream.read(CHUNK, exception_on_overflow=False)
-                self.process_chunk(chunk)
+                result = self.process_chunk(chunk)
+                if result == HomeAgentEarState.WAKEWORD_DETECTED:
+                    print("Wakeword Detected!")
+                elif result == HomeAgentEarState.DONE_CAPTURING:
+                    print("Done Capturing")
 
         except KeyboardInterrupt:
             print("\nStopping listener...")

@@ -39,7 +39,10 @@ class RedisBroadcaster:
 
     def content(self, audio):
         full_audio_bytes = b"".join(audio)
-        self.redis.xadd(self.stream_name, {"event_type": "content", "audio_data": full_audio_bytes})
+        self.redis.xadd(
+            self.stream_name,
+            {"event_type": "content", "audio_data": full_audio_bytes}
+        )
 
 
 class HomeAgentEarState(str, Enum):
@@ -56,7 +59,13 @@ class HomeAgentEar:
         self.audio_to_save = []
 
         self.pyaudio_instance = pyaudio_instance
-        self.stream = pyaudio_instance.open(format=pyaudio.paInt16, channels=1, rate=RATE, input=True, frames_per_buffer=CHUNK)
+        self.stream = pyaudio_instance.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=RATE,
+            input=True,
+            frames_per_buffer=CHUNK
+        )
         self.redis_broadcaster = redis_broadcaster
         self.vad_model = vad_model
         self.wakeword_model = wakeword_model
@@ -72,7 +81,8 @@ class HomeAgentEar:
     def _update_silence_counter(self, chunk):
         has_speech = False
 
-        for frame in frames_from_chunk(chunk): # Need to divide chunk into frames for VAD lib
+        # Need to divide chunk into frames for VAD lib
+        for frame in frames_from_chunk(chunk):
             if len(frame) < FRAME_SIZE * 2:
                 continue
             if self.vad_model.is_speech(frame, RATE):

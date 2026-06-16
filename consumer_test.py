@@ -38,13 +38,19 @@ try:
                 event_type = data.get(b"event_type", b"").decode("utf-8")
 
                 if event_type == "started":
-                    print("\n[Redis Event]: 🟢 Speech capture started (wakeword detected).")
+                    print(
+                        "\n[Redis Event]:"
+                        " 🟢 Speech capture started (wakeword detected)."
+                    )
 
                 elif event_type == "finished":
                     print("[Redis Event]: 🔴 Speech capture is finished.")
 
                 elif event_type == "content":
-                    print("[Redis Event]: 📦 Speech content received (full audio payload downloaded).")
+                    print(
+                        "[Redis Event]: "
+                        "📦 Speech content received (full audio payload downloaded)."
+                    )
 
                     audio_bytes = data.get(b"audio_data")
                     if audio_bytes:

@@ -10,6 +10,28 @@ dependencies = [
     "openwakeword>=0.4.0",
     "pyaudio>=0.2.14",
     "redis>=7.3.0",
+    "ruff>=0.15.17",
     "setuptools>=82.0.1",
     "webrtcvad-wheels>=2.0.14",
 ]
+
+[tool.ruff]
+# Target Python version
+target-version = "py310"
+
+# Same as Black.
+line-length = 88
+
+[tool.ruff.lint]
+# Enable Pyflakes (F) and pycodestyle (E) codes by default.
+# "I" enables isort (import sorting)
+select = ["E", "F", "I", "W"]
+ignore = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Enable auto-formatting (replaces Black)
+quote-style = "double"
+indent-style = "space"

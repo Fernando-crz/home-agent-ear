@@ -2,23 +2,28 @@ from collections import deque
 from enum import Enum
 
 import numpy as np
+import os
 import openwakeword
 import pyaudio
 import redis
 import webrtcvad
 from openwakeword.model import Model
 
-REDIS_HOST = "127.0.0.1"
-REDIS_PORT = 6379
-STREAM_NAME = "speech_pipeline"
+REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+STREAM_NAME = os.environ.get("STREAM_NAME", "speech_pipeline")
+
+VAD_MODE = int(os.environ.get("VAD_MODE", 2))
+SILENCE_TIMEOUT_SECONDS = float(os.environ.get("SILENCE_TIMEOUT_SECONDS", 1.2))
+WAKEWORD_THRESHOLD = float(os.environ.get("WAKEWORD_THRESHOLD", 0.5))
 
 RATE = 16000
 CHUNK = 1280
-VAD_MODE = 2
-SILENCE_FRAMES = 15
-WAKEWORD_THRESHOLD = 0.5
+CHUNK_DURATION_SECONDS = CHUNK / RATE
+SILENCE_FRAMES = round(SILENCE_TIMEOUT_SECONDS / CHUNK_DURATION_SECONDS)
 FRAME_DURATION_MS = 30
 FRAME_SIZE = int(RATE * FRAME_DURATION_MS / 1000)
+EAR_PREBUFFER_CHUNK_SIZE = 15
 
 openwakeword.utils.download_models()
 
@@ -55,7 +60,7 @@ class HomeAgentEar:
     def __init__(self, pyaudio_instance, redis_broadcaster, vad_model, wakeword_model):
         self.recording = False
         self.silence_counter = 0
-        self.prebuffer = deque(maxlen=20)
+        self.prebuffer = deque(maxlen=EAR_PREBUFFER_CHUNK_SIZE)
         self.audio_to_save = []
 
         self.pyaudio_instance = pyaudio_instance

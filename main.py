@@ -1,9 +1,8 @@
+import os
 from collections import deque
 from enum import Enum
 
 import numpy as np
-import os
-import openwakeword
 import pyaudio
 import redis
 import webrtcvad
@@ -24,8 +23,6 @@ SILENCE_FRAMES = round(SILENCE_TIMEOUT_SECONDS / CHUNK_DURATION_SECONDS)
 FRAME_DURATION_MS = 30
 FRAME_SIZE = int(RATE * FRAME_DURATION_MS / 1000)
 EAR_PREBUFFER_CHUNK_SIZE = 15
-
-openwakeword.utils.download_models()
 
 def frames_from_chunk(chunk):
     for i in range(0, len(chunk), FRAME_SIZE * 2):

@@ -1,10 +1,12 @@
 import time
 import wave
 
+import os
 import redis
 
-REDIS_HOST = "127.0.0.1"
-REDIS_PORT = 6379
+REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
 STREAM_NAME = "speech_pipeline"
 
 
@@ -12,7 +14,7 @@ RATE = 16000
 N_CHANNELS = 1
 SAMPLE_WIDTH = 2
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
 
 def save_wav(audio_bytes, filename):
     """Reconstructs the bytes back into a playable WAV file."""

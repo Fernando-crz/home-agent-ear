@@ -10,6 +10,7 @@ from openwakeword.model import Model
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
 STREAM_NAME = os.environ.get("STREAM_NAME", "speech_pipeline")
 
 VAD_MODE = int(os.environ.get("VAD_MODE", 2))
@@ -29,21 +30,21 @@ def frames_from_chunk(chunk):
         yield chunk[i:i + FRAME_SIZE * 2]
 
 class RedisBroadcaster:
-    def __init__(self, host, port, stream_name):
-        self.redis = redis.Redis(host=host, port=port)
+    def __init__(self, redis_provider, stream_name):
+        self.redis_provider = redis_provider
         self.stream_name = stream_name
 
     def start(self):
-        self.redis.xadd(self.stream_name, {"event_type": "started"})
+        self.redis_provider.xadd(self.stream_name, {"event_type": "started"})
 
     def finish(self):
-        self.redis.xadd(self.stream_name, {"event_type": "finished"})
+        self.redis_provider.xadd(self.stream_name, {"event_type": "finished"})
 
     def content(self, audio):
         full_audio_bytes = b"".join(audio)
-        self.redis.xadd(
+        self.redis_provider.xadd(
             self.stream_name,
-            {"event_type": "content", "audio_data": full_audio_bytes}
+            {"audio_data": full_audio_bytes}
         )
 
 
@@ -155,7 +156,8 @@ def main():
     pyaudio_instance = pyaudio.PyAudio()
     oww_model = Model()
     vad = webrtcvad.Vad(VAD_MODE)
-    redis_broadcaster = RedisBroadcaster(REDIS_HOST, REDIS_PORT, STREAM_NAME)
+    redis_provider = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
+    redis_broadcaster = RedisBroadcaster(redis_provider, STREAM_NAME)
     home_agent_ear = HomeAgentEar(pyaudio_instance, redis_broadcaster, vad, oww_model)
 
     home_agent_ear.run()

@@ -3,7 +3,6 @@ from collections import deque
 from enum import Enum
 
 import numpy as np
-import pyaudio
 import redis
 import webrtcvad
 from openwakeword.model import Model
@@ -11,7 +10,9 @@ from openwakeword.model import Model
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
-STREAM_NAME = os.environ.get("STREAM_NAME", "speech_pipeline")
+CONSUMER_STREAM_NAME = os.environ.get("CONSUMER_STREAM_NAME", "speech_pipeline")
+PRODUCER_STREAM_NAME = os.environ.get("PRODUCER_STREAM_NAME", "live_audio_broadcast")
+
 
 VAD_MODE = int(os.environ.get("VAD_MODE", 2))
 SILENCE_TIMEOUT_SECONDS = float(os.environ.get("SILENCE_TIMEOUT_SECONDS", 1.2))
@@ -29,7 +30,7 @@ def frames_from_chunk(chunk):
     for i in range(0, len(chunk), FRAME_SIZE * 2):
         yield chunk[i:i + FRAME_SIZE * 2]
 
-class RedisBroadcaster:
+class RedisProducer:
     def __init__(self, redis_provider, stream_name):
         self.redis_provider = redis_provider
         self.stream_name = stream_name
@@ -44,9 +45,22 @@ class RedisBroadcaster:
         full_audio_bytes = b"".join(audio)
         self.redis_provider.xadd(
             self.stream_name,
-            {"audio_data": full_audio_bytes}
+            {"event_type": "content", "audio_data": full_audio_bytes}
         )
 
+class RedisConsumer:
+    def __init__(self, redis_provider, stream_name):
+        self.redis_provider = redis_provider
+        self.stream_name = stream_name
+        self.last_id = "$"
+
+    def yield_chunks(self):
+        response  = self.redis_provider.xread({self.stream_name: self.last_id}, block=2000)
+        for _, message in response:
+            for msg_id, payload in message:
+                self.last_id = msg_id
+                chunk = payload.get(b"audio_data")
+                yield chunk
 
 class HomeAgentEarState(str, Enum):
     LISTENING = "listening"
@@ -55,21 +69,14 @@ class HomeAgentEarState(str, Enum):
     DONE_CAPTURING = "done_capturing"
 
 class HomeAgentEar:
-    def __init__(self, pyaudio_instance, redis_broadcaster, vad_model, wakeword_model):
+    def __init__(self, redis_consumer, redis_producer, vad_model, wakeword_model):
         self.recording = False
         self.silence_counter = 0
         self.prebuffer = deque(maxlen=EAR_PREBUFFER_CHUNK_SIZE)
         self.audio_to_save = []
 
-        self.pyaudio_instance = pyaudio_instance
-        self.stream = pyaudio_instance.open(
-            format=pyaudio.paInt16,
-            channels=1,
-            rate=RATE,
-            input=True,
-            frames_per_buffer=CHUNK
-        )
-        self.redis_broadcaster = redis_broadcaster
+        self.redis_consumer = redis_consumer
+        self.redis_producer = redis_producer
         self.vad_model = vad_model
         self.wakeword_model = wakeword_model
 
@@ -113,7 +120,7 @@ class HomeAgentEar:
                 self.recording = True
                 self.silence_counter = 0
 
-                self.redis_broadcaster.start()
+                self.redis_producer.start()
 
                 self.audio_to_save = list(self.prebuffer)
                 return HomeAgentEarState.WAKEWORD_DETECTED
@@ -127,8 +134,8 @@ class HomeAgentEar:
             if self.silence_counter <= SILENCE_FRAMES:
                 return HomeAgentEarState.CAPTURING
 
-            self.redis_broadcaster.finish()
-            self.redis_broadcaster.content(self.audio_to_save)
+            self.redis_producer.finish()
+            self.redis_producer.content(self.audio_to_save)
 
             self._reset_states()
 
@@ -137,28 +144,24 @@ class HomeAgentEar:
     def run(self):
         try:
             while True:
-                chunk = self.stream.read(CHUNK, exception_on_overflow=False)
-                result = self.process_chunk(chunk)
-                if result == HomeAgentEarState.WAKEWORD_DETECTED:
-                    print("Wakeword Detected!")
-                elif result == HomeAgentEarState.DONE_CAPTURING:
-                    print("Done Capturing")
+                for chunk in self.redis_consumer.yield_chunks():
+                    result = self.process_chunk(chunk)
+                    if result == HomeAgentEarState.WAKEWORD_DETECTED:
+                        print("Wakeword Detected!")
+                    elif result == HomeAgentEarState.DONE_CAPTURING:
+                        print("Done Capturing")
 
         except KeyboardInterrupt:
             print("\nStopping listener...")
-        finally:
-            self.stream.stop_stream()
-            self.stream.close()
-            self.pyaudio_instance.terminate()
 
 
 def main():
-    pyaudio_instance = pyaudio.PyAudio()
     oww_model = Model()
     vad = webrtcvad.Vad(VAD_MODE)
     redis_provider = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
-    redis_broadcaster = RedisBroadcaster(redis_provider, STREAM_NAME)
-    home_agent_ear = HomeAgentEar(pyaudio_instance, redis_broadcaster, vad, oww_model)
+    redis_consumer = RedisConsumer(redis_provider, "live_audio_broadcast")
+    redis_producer = RedisProducer(redis_provider, CONSUMER_STREAM_NAME)
+    home_agent_ear = HomeAgentEar(redis_consumer, redis_producer, vad, oww_model)
 
     home_agent_ear.run()
 

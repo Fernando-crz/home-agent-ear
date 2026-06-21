@@ -1,7 +1,7 @@
+import os
 import time
 import wave
 
-import os
 import redis
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")

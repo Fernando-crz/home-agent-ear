@@ -1,6 +1,5 @@
 import os
 import time
-import wave
 
 import redis
 
@@ -18,11 +17,8 @@ r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
 
 def save_wav(audio_bytes, filename):
     """Reconstructs the bytes back into a playable WAV file."""
-    with wave.open(filename, 'wb') as wf:
-        wf.setnchannels(N_CHANNELS)
-        wf.setsampwidth(SAMPLE_WIDTH)
-        wf.setframerate(RATE)
-        wf.writeframes(audio_bytes)
+    with open(filename, 'wb') as f:
+        f.write(audio_bytes)
     print(f" Saved file successfully: {filename}")
 
 print("Processor active. Awaiting local Redis stream messages...")
@@ -31,7 +27,7 @@ last_id = "$"
 
 try:
     while True:
-        response = r.xread({STREAM_NAME: last_id}, block=0)
+        response = r.xread({STREAM_NAME: last_id}, block=2000)
 
         for stream, messages in response:
             for msg_id, data in messages:
@@ -58,6 +54,5 @@ try:
                     if audio_bytes:
                         filename = f"received_speech_{int(time.time())}.wav"
                         save_wav(audio_bytes, filename)
-
 except KeyboardInterrupt:
     print("\nStopping processor...")

@@ -1,4 +1,6 @@
+import io
 import os
+import wave
 from collections import deque
 from enum import Enum
 
@@ -19,6 +21,8 @@ WAKEWORD_THRESHOLD = float(os.environ.get("WAKEWORD_THRESHOLD", 0.5))
 
 RATE = 16000
 CHUNK = 1280
+SAMPLE_WIDTH = 2
+CHANNELS = 1
 CHUNK_DURATION_SECONDS = CHUNK / RATE
 SILENCE_FRAMES = round(SILENCE_TIMEOUT_SECONDS / CHUNK_DURATION_SECONDS)
 FRAME_DURATION_MS = 30
@@ -42,9 +46,19 @@ class RedisProducer:
 
     def content(self, audio):
         full_audio_bytes = b"".join(audio)
+
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wav_file:
+            wav_file.setnchannels(CHANNELS)
+            wav_file.setsampwidth(SAMPLE_WIDTH)
+            wav_file.setframerate(RATE)
+            wav_file.writeframes(full_audio_bytes)
+
+        self_contained_wav_bytes = wav_buffer.getvalue()
+
         self.redis_provider.xadd(
             self.stream_name,
-            {"event_type": "content", "audio_data": full_audio_bytes}
+            {"event_type": "content", "audio_data": self_contained_wav_bytes}
         )
 
 class RedisConsumer:

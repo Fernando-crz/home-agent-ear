@@ -10,9 +10,8 @@ from openwakeword.model import Model
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD")
-CONSUMER_STREAM_NAME = os.environ.get("CONSUMER_STREAM_NAME", "speech_pipeline")
-PRODUCER_STREAM_NAME = os.environ.get("PRODUCER_STREAM_NAME", "live_audio_broadcast")
-
+CONSUMER_STREAM_NAME = os.environ.get("CONSUMER_STREAM_NAME", "live_audio_broadcast")
+PRODUCER_STREAM_NAME = os.environ.get("PRODUCER_STREAM_NAME", "speech_pipeline")
 
 VAD_MODE = int(os.environ.get("VAD_MODE", 2))
 SILENCE_TIMEOUT_SECONDS = float(os.environ.get("SILENCE_TIMEOUT_SECONDS", 1.2))
@@ -159,8 +158,8 @@ def main():
     oww_model = Model()
     vad = webrtcvad.Vad(VAD_MODE)
     redis_provider = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD)
-    redis_consumer = RedisConsumer(redis_provider, "live_audio_broadcast")
-    redis_producer = RedisProducer(redis_provider, CONSUMER_STREAM_NAME)
+    redis_consumer = RedisConsumer(redis_provider, CONSUMER_STREAM_NAME)
+    redis_producer = RedisProducer(redis_provider, PRODUCER_STREAM_NAME)
     home_agent_ear = HomeAgentEar(redis_consumer, redis_producer, vad, oww_model)
 
     home_agent_ear.run()
